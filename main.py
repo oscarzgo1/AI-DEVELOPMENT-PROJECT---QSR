@@ -1,6 +1,8 @@
+
 import numpy as np
 import time
-import requests
+from reachy_mini import ReachyMini
+from reachy_mini.utils import create_head_pose
 
 
 class QTC:
@@ -27,6 +29,7 @@ class QTC:
             return "stable"
         
 
+
 class QSREngine:
 
     def __init__(self):
@@ -50,15 +53,47 @@ class QSREngine:
         
 
 class Entity:
-    def __init__(self,label):
-        self.position  =  None
-        self.label = label
-        self.prev_postion = None
 
+    def __init__(self, label):
+        self.label = label
+        self.position = None
+        self.prev_position = None
 
     def update(self, new_position):
-      self.prev_postion = self.position
-      self.position = new_position
+        self.prev_position = self.position
+        self.position = new_position
+
+
+
+class RobotController:
+
+    def __init__(self, mini):
+        self.mini = mini
+
+    def look_left(self):
+        print("Robot looks LEFT")
+        self.mini.goto_target(
+            head=create_head_pose(yaw=30, degrees=True),
+            duration=1.0
+        )
+
+    def look_right(self):
+        print("Robot looks RIGHT")
+        self.mini.goto_target(
+            head=create_head_pose(yaw=-30, degrees=True),
+            duration=1.0
+        )
+
+    def look_forward(self):
+        print("Robot looks FORWARD")
+        self.mini.goto_target(
+            head=create_head_pose(yaw=0, degrees=True),
+            duration=1.0
+        )
+
+    def idle(self):
+        print("Robot IDLE")
+        self.look_forward()
 
 
 
@@ -66,6 +101,7 @@ class BehaviorManager:
 
     def __init__(self, robot_controller):
         self.robot = robot_controller
+
 
     def react(self, phase):
 
@@ -85,47 +121,40 @@ class BehaviorManager:
 
 
 
-class RobotController:
-
-    def look_left(self):
-        print("Robot looks left")
-
-    def look_right(self):
-        print("Robot looks right")
-
-    def look_forward(self):
-        print("Robot looks forward")
-
-    def idle(self):
-        print("Robot idle")
-
-# Initialize
-human = Entity("human")
-cup = Entity("cup")
-
-engine = QSREngine()
-robot = RobotController()
-behavior = BehaviorManager(robot)
+def get_perception_data(step):
+        return {
+            "human": (1.5 - step * 0.05, 0, 0),
+            "cup": (0, 0, 0)
+        }
+    
 
 
-# Fake test loop
-for step in range(20):
+def main():
 
-    # Simulated human moving toward cup
-    human_position = (-6.5 - step * 0.05, 0, 0)
-    cup_position = (0, 0, 0)
+        human = Entity("human")
+        cup = Entity("cup")
 
-    human.update(human_position)
-    cup.update(cup_position)
+        engine = QSREngine()
 
-    phase = engine.compute_phase(human, cup)
+    # Connect to Reachy
+        with ReachyMini() as mini:
 
-    behavior.react(phase)
+            robot = RobotController(mini)
+            behavior = BehaviorManager(robot)
 
+            print("Connected to Reachy Mini ✅")
 
+            for step in range(20):
 
-    time.sleep(0.2)
+                data = get_perception_data(step)
 
+                if "human" in data and "cup" in data:
 
+                    human.update(data["human"])
+                    cup.update(data["cup"])
 
+                    phase = engine.compute_phase(human, cup)
 
+                    behavior.react(phase)
+
+                time.sleep(1.0)
